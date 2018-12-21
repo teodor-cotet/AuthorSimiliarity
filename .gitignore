@@ -1,6 +1,4 @@
-*.html
 *.zip
-corpora/**
 dglr2/**
 res.txt
 .vscode/**
