@@ -1,0 +1,25 @@
+htmls files contain 2 types of sections:
+    -small (authors+publications)
+    -big (authors+publications)
+
+we have 2 categories which are indexed in es:
+    -authors:
+        * name: name of the puauthor
+        * short description: lifespan, titles # TODO get info from this
+        * quotes: 
+        * important author: y/n
+        * writings: 
+        * references:
+        * description: rest of the text
+    -publications
+        * name: name of the publications
+        * description: rest of the text
+
+stats for each section:
+    big:
+        failed to extract name: 3 / 355
+        authors: 352 / 355
+    small:
+        failed to extract name: 128 / 1464
+        publications: 455 / 1464
+        authors: 881 / 1464
