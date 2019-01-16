@@ -1,7 +1,11 @@
+# coding=UTF8
 from pyquery import PyQuery as pq
 from os import listdir
 from os.path import isfile, join
 import nltk
+import re
+nltk.download('punkt')
+
 import re
 from utils import Selectors, AuthorInfo, PublicationInfo
 
@@ -164,6 +168,13 @@ class HtmlParser:
                 elif current_class == Selectors.CLASS_SCRIERI.value:
                     author_info[AuthorInfo.SCRIERI.value] = \
                         [writing.strip(' \n') for writing in item.text().replace("SCRIERI:", "").split(';')]
+                    years_in_writing = [re.findall('(\d{4})',year) for year in author_info[AuthorInfo.SCRIERI.value]]
+                    year_in_writing_simple = []
+                    if any(years_in_writing):
+                        for year in years_in_writing:
+                            if(any(year)):
+                                    year_in_writing_simple.append(int(year[-1]))
+                    author_info[AuthorInfo.ANI_PUBLICARE.value ] = year_in_writing_simple
                     last_quote = False
                 # references
                 elif current_class == Selectors.CLASS_BIBLIO.value:
@@ -231,6 +242,13 @@ class HtmlParser:
                 elif current_class == Selectors.CLASS_SCRIERI.value:
                     author_info[AuthorInfo.SCRIERI.value] = \
                         [writing.strip(' \n') for writing in item.text().replace("SCRIERI:", "").split(';')]
+                    years_in_writing = [re.findall('(\d{4})',year) for year in author_info[AuthorInfo.SCRIERI.value]]
+                    year_in_writing_simple = []
+                    if any(years_in_writing):
+                        for year in years_in_writing:
+                            if(any(year)):
+                                    year_in_writing_simple.append(int(year[-1]))
+                    author_info[AuthorInfo.ANI_PUBLICARE.value ] = year_in_writing_simple
                     last_quote = False
                 # references
                 elif current_class == Selectors.CLASS_BIBLIO.value:
@@ -293,4 +311,5 @@ class HtmlParser:
 
 if __name__ == "__main__":
     parser = HtmlParser()
-    parser.parse('corpora/htmls')    
+    authors, pubs = parser.parse('corpora/htmls')    
+    #print(authors[0].encode("utf-8"))

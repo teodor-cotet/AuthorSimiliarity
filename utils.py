@@ -24,6 +24,7 @@ class AuthorInfo(Enum):
     DESCRIERE_SCURTA = 'short_description'
     CITATE = 'quotes'
     SCRIERI = 'writings'
+    ANI_PUBLICARE = 'publishing_years'
     REP_BIBLIO = 'references'
     AUTOR_IMPORTANT = 'important_author'
 
