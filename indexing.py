@@ -1,6 +1,14 @@
 from utils import Selectors, AuthorInfo, PublicationInfo, Elastic
 from elasticsearch import Elasticsearch
 from parse_htmls import HtmlParser
+import json
+import nltk
+from gensim.models.wrappers import FastText as FastTextWrapper
+import numpy as np
+import pickle
+
+model_embeddings = None
+fast_text = "fastText/wiki.ro"
 
 class ElasticS():
 
@@ -69,15 +77,66 @@ class ElasticS():
         
         print('[Elasticsearch] Finished indexing {} publications in {}'\
         .format(len(pubs_info), Elastic.ELASTIC_INDEX_PUBLICATIONS.value))
+    
+
+    def get_all_docs(self, size=1, index_to_search=Elastic.ELASTIC_INDEX_AUTHORS,\
+        verbose=False):
+        search_query = {
+            "from": 0, 
+            "size": size, # max limit is 10 000, default size=10
+            'size' : 10000,
+            'query': {
+                'match_all' : {}
+            }
+        }
+
+        query_res = self.es.search(index=index_to_search.value, body=search_query)
+        print('[Elasticsearch] Getting docs already indexed for {}'.format(index_to_search.value))
+        if verbose == True:
+            print(json.dumps(query_res, indent=True))
+        return query_res
+
+def process_text(description):
+    #description_utf = description.decode('utf-8')
+    all_tokens = []
+    sentences = nltk.sent_tokenize(description)
+    for s in sentences:
+        all_tokens += nltk.word_tokenize(s)
+    avg = np.zeros([0] * 300)
+    cnt_words = 0
+    for token in all_tokens:
+        if token in model_embeddings.wv.vocab:
+            cnt_words += 1
+            avg += np.float32(model_embeddings.wv[token])
+    return avg/cnt_words
+
+        
 
 if __name__ == "__main__":
-    es = ElasticS(clean_instance=True)
-    parser = HtmlParser()
-    authors_info, pubs_info = parser.parse('corpora/htmls')
-    es.index_authors(authors_info)
-    es.index_publications(pubs_info)
+    es = ElasticS(clean_instance=False)
+    # parser = HtmlParser()
+    # authors_info, pubs_info = parser.parse('corpora/htmls')
+    # es.index_authors(authors_info)
+    # es.index_publications(pubs_info)
+
+
     # for x in authors_info[1]:
     #     print(x, authors_info[1][x])
+    all_docs = es.get_all_docs(size=100000, index_to_search=Elastic.ELASTIC_INDEX_AUTHORS, verbose=False)
+    #print(len(all_docs["hits"]["hits"]))
+    all_descriptions = [ "\n".join(doc["_source"]["description"]) for doc in all_docs["hits"]["hits"]]
+    all_names = [ doc["_source"]["name"] for doc in all_docs["hits"]["hits"] ]
+    
+    model_embeddings = FastTextWrapper.load_fasttext_format(fast_text)
+    datapoints = []
+    for i, description in enumerate(all_descriptions):
+        datapoint = process_text(description)
+        datapoints.append(datapoint, all_names[i])
+    pickle.dump(datapoints, open( "datapoints_authors", "wb" ))
+    
+    #print(len(all_descriptions))
+    #print(len(all_names))
+    
 
 
 
