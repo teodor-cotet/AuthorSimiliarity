@@ -10,6 +10,8 @@ import re
 from utils import Selectors, AuthorInfo, PublicationInfo
 
 class HtmlParser:
+    min_words = 500
+    max_words = 0
     key_words_publications = \
             ['ASOCIAŢIA', 'LITERARĂ', 'ROMÂNIEI', 'CULTURALĂ', 'ROMÂNEASCĂ', \
             'literatura', 'română', 'poporului', 'român', 'AsociaŢiunea',\
@@ -142,6 +144,7 @@ class HtmlParser:
         
         author_info = {}
         author_info[AuthorInfo.DESCRIERE.value] = [items.eq(index).text()]
+        author_info[AuthorInfo.NUMAR_CUVINTE.value] = str(len(items.eq(index).text().split()))
 
         # put name
         for i in range(len(name_words)):
@@ -163,6 +166,7 @@ class HtmlParser:
                 if current_class == Selectors.CLASS_TEXT1.value or\
                     current_class == Selectors.CLASS_TEXT2.value:
                     author_info[AuthorInfo.DESCRIERE.value].append(item.text().strip(' \n'))
+                    author_info[AuthorInfo.NUMAR_CUVINTE.value] = str(int(author_info[AuthorInfo.NUMAR_CUVINTE.value]) + len(item.text().strip()))
                     last_quote = False
                 # writings
                 elif current_class == Selectors.CLASS_SCRIERI.value:
@@ -174,7 +178,7 @@ class HtmlParser:
                         for year in years_in_writing:
                             if(any(year)):
                                     year_in_writing_simple.append(int(year[-1]))
-                    author_info[AuthorInfo.ANI_PUBLICARE.value ] = year_in_writing_simple
+                    author_info[AuthorInfo.ANI_PUBLICARE.value] = year_in_writing_simple
                     last_quote = False
                 # references
                 elif current_class == Selectors.CLASS_BIBLIO.value:
@@ -204,6 +208,7 @@ class HtmlParser:
         
         author_info = {}
         author_info[AuthorInfo.DESCRIERE.value] = [items.eq(index).text()]
+        author_info[AuthorInfo.NUMAR_CUVINTE.value] = str(len(items.eq(index).text().split()))
         author_info[AuthorInfo.DESCRIERE_SCURTA.value] = short_description
         # put name
         for i in range(len(name_words)):
@@ -216,15 +221,16 @@ class HtmlParser:
         item = items.eq(index)
         current_class = 'None'
 
-        try:
-            current_class = item.attr('class').split(' ')[0]
-            if current_class == Selectors.CLASS_AUTOR_SMALL.value or\
-                current_class == Selectors.CLASS_PUBLICATIE.value:
-                author_info[AuthorInfo.DESCRIERE.value].append(item.text().strip(' \n'))
-            else:
-                print('smth went wrong', current_class)
-        except:
-            print('error')
+        # try:
+        #     current_class = item.attr('class').split(' ')[0]
+        #     if current_class == Selectors.CLASS_AUTOR_SMALL.value or\
+        #         current_class == Selectors.CLASS_PUBLICATIE.value:
+        #         author_info[AuthorInfo.DESCRIERE.value].append(item.text().strip(' \n'))
+        #         author_info[AuthorInfo.NUMAR_CUVINTE.value] = str(int(author_info[AuthorInfo.NUMAR_CUVINTE.value]) + len(item.text().strip()))
+        #     else:
+        #         print('smth went wrong', current_class)
+        # except:
+        #     print('error')
 
         index += 1
 
@@ -237,6 +243,7 @@ class HtmlParser:
                 if current_class == Selectors.CLASS_TEXT1.value or\
                     current_class == Selectors.CLASS_TEXT2.value:
                     author_info[AuthorInfo.DESCRIERE.value].append(item.text().strip(' \n'))
+                    author_info[AuthorInfo.NUMAR_CUVINTE.value] = str(int(author_info[AuthorInfo.NUMAR_CUVINTE.value]) + len(item.text().strip()))
                     last_quote = False
                 # writings
                 elif current_class == Selectors.CLASS_SCRIERI.value:

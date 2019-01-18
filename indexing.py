@@ -2,6 +2,7 @@ from utils import Selectors, AuthorInfo, PublicationInfo, Elastic
 from elasticsearch import Elasticsearch
 from parse_htmls import HtmlParser
 import json
+json.encoder.c_make_encoder = None
 import nltk
 from gensim.models.wrappers import FastText as FastTextWrapper
 import numpy as np
@@ -126,7 +127,7 @@ def process_text(description):
 def clustering(datapoints):
     
     data = [d[0] for d in datapoints]
-    estimator = KMeans(init='random', n_clusters=10, n_init=10)
+    estimator = KMeans(init='random', n_clusters=6, n_init=6)
     estimator.fit(data)
     #print(estimator)
     # for i in range(len(datapoints)):
@@ -135,7 +136,7 @@ def clustering(datapoints):
     
     reduced_data = PCA(n_components=2).fit_transform(data)
     # k-means++, 
-    kmeans = KMeans(init='k-means++', n_clusters=10, n_init=10)
+    kmeans = KMeans(init='k-means++', n_clusters=6, n_init=6)
     kmeans.fit(reduced_data)
 
     print('silhouette: {}'.format(metrics.silhouette_score(data, estimator.labels_,\
@@ -202,11 +203,14 @@ def clustering(datapoints):
 
 
 if __name__ == "__main__":
-    # es = ElasticS(clean_instance=False)
-    # # parser = HtmlParser()
-    # # authors_info, pubs_info = parser.parse('corpora/htmls')
-    # # es.index_authors(authors_info)
-    # # es.index_publications(pubs_info)
+    es = ElasticS(clean_instance=True)
+    #es = ElasticS(clean_instance=False)
+    parser = HtmlParser()
+    authors_info, pubs_info = parser.parse('corpora/htmls')
+    
+    #json.dumps(authors_info)
+    es.index_authors(authors_info)
+    es.index_publications(pubs_info)
 
 
     # # for x in authors_info[1]:
@@ -224,11 +228,11 @@ if __name__ == "__main__":
     # pickle.dump(datapoints, open("datapoints_authors", "wb" ))
 
 
-    datapoints = pickle.load(open("datapoints_authors", "rb"))
+    #@datapoints = pickle.load(open("datapoints_authors", "rb"))
 
     # for d in datapoints[0:10]:
     #     print(d[0], d[1])
-    clustering(datapoints)
+    #@clustering(datapoints)
     #print(len(all_descriptions))
     #print(len(all_names))
     

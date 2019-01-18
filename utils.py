@@ -27,6 +27,8 @@ class AuthorInfo(Enum):
     ANI_PUBLICARE = 'publishing_years'
     REP_BIBLIO = 'references'
     AUTOR_IMPORTANT = 'important_author'
+    NUMAR_CUVINTE = 'words_count'
+    IMPORTANTA = 'importance'
 
 class PublicationInfo(Enum):
     NUME = 'name'
