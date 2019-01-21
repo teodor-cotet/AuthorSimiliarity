@@ -179,11 +179,15 @@ class HtmlParser:
                             if(any(year)):
                                     year_in_writing_simple.append(int(year[-1]))
                     author_info[AuthorInfo.ANI_PUBLICARE.value] = year_in_writing_simple
+                    if len(year_in_writing_simple) > 0:
+                        author_info[AuthorInfo.MEDIE_ANI_PUBLICARE.value] = str(sum(year_in_writing_simple) / len(year_in_writing_simple))
                     last_quote = False
                 # references
                 elif current_class == Selectors.CLASS_BIBLIO.value:
                     author_info[AuthorInfo.REP_BIBLIO.value] = \
                       [ref.strip(' \n') for ref in item.text().replace("Repere bibliografice:", "").split(';')]
+                    author_info[AuthorInfo.REF_AUTHORS.value] = \
+                      [ref.split(",", 1)[0] for ref in author_info[AuthorInfo.REP_BIBLIO.value]]
                     last_quote = False
                 # quotes
                 elif current_class == Selectors.CLASS_CITAT_TEXT.value:
@@ -256,11 +260,15 @@ class HtmlParser:
                             if(any(year)):
                                     year_in_writing_simple.append(int(year[-1]))
                     author_info[AuthorInfo.ANI_PUBLICARE.value ] = year_in_writing_simple
+                    if len(year_in_writing_simple) > 0:
+                        author_info[AuthorInfo.MEDIE_ANI_PUBLICARE.value] = str(sum(year_in_writing_simple) / len(year_in_writing_simple))
                     last_quote = False
                 # references
                 elif current_class == Selectors.CLASS_BIBLIO.value:
                     author_info[AuthorInfo.REP_BIBLIO.value] = \
                       [ref.strip(' \n') for ref in item.text().replace("Repere bibliografice:", "").split(';')]
+                    author_info[AuthorInfo.REF_AUTHORS.value] = \
+                      [ref.split(",", 1)[0] for ref in author_info[AuthorInfo.REP_BIBLIO.value]]
                     last_quote = False
                 # quotes
                 elif current_class == Selectors.CLASS_CITAT_TEXT.value:
