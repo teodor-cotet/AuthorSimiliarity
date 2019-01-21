@@ -5,3 +5,6 @@ res.txt
 __pycache__/**
 virtualenv-intellit/**
 fastText/**
+other_data/authors.model
+other_data/datapoints_authors
+other_data/temp.png
