@@ -31,6 +31,7 @@ class AuthorInfo(Enum):
     AUTOR_IMPORTANT = 'important_author'
     NUMAR_CUVINTE = 'words_count'
     IMPORTANTA = 'importance'
+    PROFESII = 'professions'
 
 class PublicationInfo(Enum):
     NUME = 'name'

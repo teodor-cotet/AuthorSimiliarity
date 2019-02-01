@@ -22,6 +22,16 @@ class HtmlParser:
             'AUTOBIOGRAFIE', 'AVANGARDĂ', 'CONTEMPORANUL', 'BALADĂ', 'BIOGRAFIE', 'BIZANTINISM',\
             'CORESPONDENȚĂ', 'DOUĂSPREZECE', 'ROMANIA', 'DADAISM', 'CONVORBIRI',\
             'LITERARE', 'CHIRALINA', 'ARCHIRIE', 'CODICELE', 'ALEXANDRIA']
+    professions = \
+    [
+        'etnolog', 'critic', 'eseist', 'autor dramatic', 'folclorist', 'traducător',
+        'poet', 'dramaturg', 'traducătoare', 'publicist', 'slavist', 'jurnalist', 'românist german',
+        'prozator', 'comparatist', 'editor', 'ziarist', 'memorialist', 'gazetar', 'clasicist',
+        'prozatoare', 'versificator', 'culegător de folclor', 'stilistician', 'autor de versuri',
+        'filolog', 'diarist', 'cărturar', 'anglist', 'imnograf', 'istoric', 'cronicar', 'estetician',
+        'teatrolog', 'teoretician', 'autoare', 'povestitor', 'critic de teatru', 'eminescolog'  
+        ]
+
 
     def __init__(self):
         self.authors_info = []
@@ -33,11 +43,15 @@ class HtmlParser:
     
     def parse(self, path_files):
         html_files = [f for f in listdir(path_files) if isfile(join(path_files, f))]
+        
+        logger = open("no-profession.txt","w", encoding="utf-8")         
         for html_file in html_files:
-            self.parse_file(join(path_files, html_file))
+            self.parse_file(join(path_files, html_file), logger)
+        logger.close()
+        
         return self.authors_info, self.pubs_info
 
-    def parse_file(self, html_file):
+    def parse_file(self, html_file, logger):
 
         with open(html_file, 'r', encoding='utf-8') as f:
             s = f.read()
@@ -67,7 +81,7 @@ class HtmlParser:
                         continue
                     # no publications for big authors
                     index, author_info, last_class = self.parse_big_author(\
-                        items, index + 1, name_words, short_description=short_description)
+                        items, index + 1, name_words, logger=logger, short_description=short_description)
                     index -= 1
                     self.authors_info.append(author_info)
 
@@ -90,12 +104,12 @@ class HtmlParser:
                         self.pubs_info.append(pub_info)
                     else:
                         # start parsing an author
-                        index, author_info, last_class = self.parse_author(items, index, name_words, short_description)
+                        index, author_info, last_class = self.parse_author(items, index, name_words, logger, short_description )
                         index -= 1
                         self.authors_info.append(author_info)
                 else:
                     last_class = current_class
-            index += 1
+            index += 1       
 
     def get_name_and_short_description_big_author(self, item):
         name_words = nltk.word_tokenize(item('.Titlu-Nume-H').text())
@@ -140,7 +154,7 @@ class HtmlParser:
                 return True
         return False
 
-    def parse_author(self, items, index, name_words, short_description=None):
+    def parse_author(self, items, index, name_words, logger, short_description=None):
         
         author_info = {}
         author_info[AuthorInfo.DESCRIERE.value] = [items.eq(index).text()]
@@ -152,6 +166,9 @@ class HtmlParser:
         author_info[AuthorInfo.NUME.value] = (" ".join(name_words)).replace(",", "")
         author_info[AuthorInfo.CITATE.value] = []
         author_info[AuthorInfo.DESCRIERE_SCURTA.value] = short_description
+        author_info[AuthorInfo.PROFESII.value] = [elem for elem in HtmlParser.professions if elem in short_description]
+        if not author_info[AuthorInfo.PROFESII.value]:
+            logger.write(author_info[AuthorInfo.NUME.value] + "\n") 
         author_info[AuthorInfo.AUTOR_IMPORTANT.value] = "nu"
 
         last_quote = False
@@ -208,12 +225,15 @@ class HtmlParser:
 
         return index, author_info, current_class
     
-    def parse_big_author(self, items, index, name_words, short_description=None):
+    def parse_big_author(self, items, index, name_words, logger, short_description=None):
         
         author_info = {}
         author_info[AuthorInfo.DESCRIERE.value] = [items.eq(index).text()]
         author_info[AuthorInfo.NUMAR_CUVINTE.value] = str(len(items.eq(index).text().split()))
         author_info[AuthorInfo.DESCRIERE_SCURTA.value] = short_description
+        author_info[AuthorInfo.PROFESII.value] = [elem for elem in HtmlParser.professions if elem in short_description]
+        if not author_info[AuthorInfo.PROFESII.value]:
+            logger.write(author_info[AuthorInfo.DESCRIERE_SCURTA.value] + "\n") 
         # put name
         for i in range(len(name_words)):
             name_words[i] = name_words[i].replace(" ", "")
