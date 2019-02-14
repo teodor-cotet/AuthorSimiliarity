@@ -126,7 +126,6 @@ def process_text(description):
 
 if __name__ == "__main__":
     es = ElasticS(clean_instance=True)
-    
     #es = ElasticS(clean_instance=False)
     parser = HtmlParser()
     authors_info, pubs_info = parser.parse('corpora/htmls')

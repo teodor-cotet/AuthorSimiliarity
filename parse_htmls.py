@@ -345,6 +345,7 @@ class HtmlParser:
 
 
 if __name__ == "__main__":
-    parser = HtmlParser()
-    authors, pubs = parser.parse('corpora/htmls')    
+    # parser = HtmlParser()
+    # authors, pubs = parser.parse('corpora/htmls')    
     #print(authors[0].encode("utf-8"))
+    pass
