@@ -30,8 +30,7 @@ class HtmlParser:
         'prozatoare', 'versificator', 'culegător de folclor', 'stilistician', 'autor de versuri',
         'filolog', 'diarist', 'cărturar', 'anglist', 'imnograf', 'istoric', 'cronicar', 'estetician',
         'teatrolog', 'teoretician', 'autoare', 'povestitor', 'critic de teatru', 'eminescolog'  
-        ]
-
+    ]
 
     def __init__(self):
         self.authors_info = []
