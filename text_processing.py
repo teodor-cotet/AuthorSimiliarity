@@ -9,8 +9,6 @@ from typing import Dict, Tuple, List, Any
 from gensim.models.wrappers import FastText as FastTextWrapper
 import pickle
 
-# TODO tokens repeat
-
 class TextProcessings:
 
     FAST_TEXT_PATH = "fastText/cc.ro.300"
@@ -78,7 +76,8 @@ class TextProcessings:
         map_scores = {token: scores[i] for i, token in enumerate(tokens)}
         return map_scores
 
-    def get_authors_pondered_tokens(self, tf_idf_scores: Dict[str, List[float]], parsed_texts: List[str]) -> Dict[str, List[Tuple[str, float]]]:
+    def get_authors_pondered_tokens(self, tf_idf_scores: Dict[str, List[float]],\
+         parsed_texts: List[str], parsed_names: List[str]) -> Dict[str, List[Tuple[str, float]]]:
         authors_pondered_tokens = {}
         for i, (text, name) in enumerate(zip(parsed_texts, parsed_names)):
             weights = []
@@ -103,30 +102,38 @@ class TextProcessings:
                 weighted_avg_author = np.float32([0] * TextProcessings.WORD_DIM)
                 print(name, file=f)
                 weights, tokens = [], []
+                unique_tokens = set()
                 for (token, weight) in tokens_weights:
-                    if token in self.model_embeddings.wv.vocab:
+                    if token in self.model_embeddings.wv.vocab and token not in unique_tokens:
                         weights.append(weight)
                         tokens.append(token)
-                    else:
-                        print(token, file=f)
+                        unique_tokens.add(token)
+                        
                 # normalize weights s.t. is a prob distribution
                 weights = normalize(np.float32([weights]), norm='l1')[0]
                 print(weights, file=f)
                 print(weights[0])
                 for i, token in enumerate(tokens):
                     weighted_avg_author += weights[i] * self.model_embeddings.wv[token]
+                    print(token, weights[i] , file=f)
                 authors_embeddings.append((name, weighted_avg_author))
-                #print(weighted_avg_author, file=f)
-            # datapoints = []
-            # for i, description in enumerate(all_descriptions):
-            #     datapoint = process_text(description)
-            #     datapoints.append((datapoint, all_names[i]))
             pickle.dump(authors_embeddings, open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "wb"))
-           
-
+    
+    def compute_word_embeddings_authors(self):
+        data = self.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
+                                                AuthorInfo.DESCRIERE.value,\
+                                                AuthorInfo.CITATE.value,
+                                                AuthorInfo.NUME.value)
+        parsed_data = self.get_raw_description_authors(data)
+        parsed_texts = [auth[AuthorInfo.DESCRIERE.value] for auth in parsed_data]
+        parsed_names = [auth[AuthorInfo.NUME.value] for auth in parsed_data]
+        tf_idf_scores = self.get_tf_idf_score(parsed_texts)
+        authors_pondered_tokens = self.get_authors_pondered_tokens(tf_idf_scores, parsed_texts, parsed_names)
+        self.get_embeddings_authors(authors_pondered_tokens)
 
 if __name__ == "__main__":
-    # txt_processing = TextProcessings()
+    txt_processing = TextProcessings()
+    txt_processing.compute_word_embeddings_authors()
     # data = txt_processing.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
     #                                           AuthorInfo.DESCRIERE.value,\
     #                                           AuthorInfo.CITATE.value,
@@ -138,19 +145,12 @@ if __name__ == "__main__":
     # authors_pondered_tokens = txt_processing.get_authors_pondered_tokens(tf_idf_scores, parsed_texts)
     # txt_processing.get_embeddings_authors(authors_pondered_tokens)
 
-    with open('res.txt', 'w', encoding='utf-8') as f:
-        datapoints = pickle.load(open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "rb"))
-        for (name, w) in datapoints:
-            print(name, w, file=f)
-    
     # with open('res.txt', 'w', encoding='utf-8') as f:
-    #     for author, weights in authors_pondered_tokens.items():
-    #         print(author, file=f)
-    #         for (token, weight) in weights:
-    #             print(token, weight, file=f)
-
-    # tf_idf_scores[token] = [score_doc_1, score_doc_2, score_doc_3]
-    # {name_author: [(token, weight), (token, weight)]}
+    #     datapoints = pickle.load(open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "rb"))
+    #     for (name, w) in datapoints:
+    #         print(name, w, file=f)
+    
+    
 
    
 
