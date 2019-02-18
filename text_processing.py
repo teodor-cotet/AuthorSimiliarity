@@ -1,4 +1,3 @@
-
 import sys
 from indexing import ElasticS
 from utils import Selectors, AuthorInfo, PublicationInfo, Elastic
@@ -6,38 +5,46 @@ import spacy
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import normalize
-rom_spacy = spacy.load('../Readerbench-python/models/model3')
+from typing import Dict, Tuple, List, Any
+from gensim.models.wrappers import FastText as FastTextWrapper
+import pickle
 
-# TODO 
-# 1 change diacritics to good diacritics
-# 2 check tf_idf scores
-
-correct_diacs = {
-    "ş": "ș",
-	"Ş": "Ș",
-	"ţ": "ț",
-	"Ţ": "Ț",
-}
-
-# you need to git clone https://git.readerbench.com/ReaderBench/Readerbench-python in order for this to work
-def tokenize_text_spacy(text):
-    list_text = list(text)
-    text = "".join([correct_diacs[c] if c in correct_diacs else c for c in list_text])
-    tokens = [token for token in rom_spacy(text)]
-    tokens = list(filter(lambda token: token.dep_ != 'punct', tokens))
-
-    # with open('res.txt', 'w', encoding='utf-8') as f:
-    #     for token in tokens:
-    #         print(token.text, token.pos_, token.pos, token.dep_, token.lemma_, file=f)
-    lemmas = [token.lemma_ for token in tokens]
-
-    return [token.lemma_ for token in tokens]
+# TODO tokens repeat
 
 class TextProcessings:
+
+    FAST_TEXT_PATH = "fastText/cc.ro.300"
+    CORRECT_DIACS = {
+        "ş": "ș",
+        "Ş": "Ș",
+        "ţ": "ț",
+        "Ţ": "Ț",
+    }
+    REPLACE_CHARS = {
+        "/": ""
+    }
+    AUTHORS_EMBEDDINGS_FILE = 'embeddings_authors'
+    WORD_DIM = 300
+
     def __init__(self):
         self.es = ElasticS(clean_instance=False)
+        self.model_embeddings = None # from fasttext
+        self.rom_spacy = spacy.load('../Readerbench-python/models/model3')
 
-    def get_data_from_index(self, index, *argv):
+    # you need to git clone https://git.readerbench.com/ReaderBench/Readerbench-python in order for this to work
+    def tokenize_text_spacy(self, text: str) -> List[str]:
+        list_text = list(text)
+
+        # some cleaning correct diacritics + eliminate \
+        text = "".join([TextProcessings.CORRECT_DIACS[c] if c in TextProcessings.CORRECT_DIACS else c for c in list_text])
+        list_text = list(text)
+        text = "".join([TextProcessings.REPLACE_CHARS[c] if c in TextProcessings.REPLACE_CHARS else c for c in list_text])
+
+        tokens = [token for token in self.rom_spacy(text)]
+        tokens = list(filter(lambda token: token.dep_ != 'punct', tokens))
+        return [token.lemma_ for token in tokens]
+
+    def get_data_from_index(self, index, *argv) -> Dict[str, Any]:
         all_docs = self.es.get_all_docs(size=10000, index_to_search=Elastic.ELASTIC_INDEX_AUTHORS, verbose=False)
         data = []
         for doc in all_docs["hits"]["hits"]:
@@ -46,7 +53,7 @@ class TextProcessings:
         return data
 
     # get text that describes author: description and quotes (name, quotes, and description has to be in data)  
-    def get_raw_description_authors(self, data):
+    def get_raw_description_authors(self, data: Dict[str, Any]) -> List[Dict[str, str]]:
         parsed_data = []
         for author in data:
             auth = {}
@@ -57,54 +64,95 @@ class TextProcessings:
             parsed_data.append(auth)
         return parsed_data
 
-    def tf_idf_score(self, corpus):
+    def get_tf_idf_score(self, corpus: List[str]) -> Dict[str, List[float]]:
+        print('get tf_idf')
         feature_extraction = TfidfVectorizer(sublinear_tf=True,# tf =1 + log(tf)\
                                              min_df=1,\
                                              analyzer='word',\
-                                             tokenizer=tokenize_text_spacy,\
+                                             tokenizer=self.tokenize_text_spacy,\
                                              norm='l2')
-        # with open('res.txt', 'w', encoding='utf-8') as f:
-        #     print(tokens, file=f)
         tf_idf_scores = feature_extraction.fit_transform(corpus)
         tokens = feature_extraction.get_feature_names()
+        print('done tf_idf')
         scores = tf_idf_scores.toarray().T # scores[i][j] = token i, doc j
         map_scores = {token: scores[i] for i, token in enumerate(tokens)}
         return map_scores
-        # with open('res.txt', 'w', encoding='utf-8') as f:
-        #     print(corpus[0], file=f)
-        #     print(corpus[1], file=f)
-        #     for i, token in enumerate(tokens):
-        #         print(token, file=f)
-        #         for j in range(1000):
-        #             if scores[j][i] > 0:
-        #                 print(scores[j][i], file=f)
+
+    def get_authors_pondered_tokens(self, tf_idf_scores: Dict[str, List[float]], parsed_texts: List[str]) -> Dict[str, List[Tuple[str, float]]]:
+        authors_pondered_tokens = {}
+        for i, (text, name) in enumerate(zip(parsed_texts, parsed_names)):
+            weights = []
+            scored_tokens = []
+            # works even if the tokenizer is not deterministic
+            for token in self.tokenize_text_spacy(text):
+                if token in tf_idf_scores:
+                    weights.append(tf_idf_scores[token][i])
+                    scored_tokens.append(token)
+            authors_pondered_tokens[name] = []
+
+            for token, weight in zip(scored_tokens, weights):
+                authors_pondered_tokens[name].append((token, weight))
+        return authors_pondered_tokens
+
+    def get_embeddings_authors(self, authors_pondered_tokens: Dict[str, List[Tuple[str, float]]]):
+        self.model_embeddings = FastTextWrapper.load_fasttext_format(TextProcessings.FAST_TEXT_PATH)
+        authors_embeddings = []
+        print('computing embeddings')
+        with open('res.txt', 'w', encoding='utf-8') as f:
+            for name, tokens_weights in authors_pondered_tokens.items():
+                weighted_avg_author = np.float32([0] * TextProcessings.WORD_DIM)
+                print(name, file=f)
+                weights, tokens = [], []
+                for (token, weight) in tokens_weights:
+                    if token in self.model_embeddings.wv.vocab:
+                        weights.append(weight)
+                        tokens.append(token)
+                    else:
+                        print(token, file=f)
+                # normalize weights s.t. is a prob distribution
+                weights = normalize(np.float32([weights]), norm='l1')[0]
+                print(weights, file=f)
+                print(weights[0])
+                for i, token in enumerate(tokens):
+                    weighted_avg_author += weights[i] * self.model_embeddings.wv[token]
+                authors_embeddings.append((name, weighted_avg_author))
+                #print(weighted_avg_author, file=f)
+            # datapoints = []
+            # for i, description in enumerate(all_descriptions):
+            #     datapoint = process_text(description)
+            #     datapoints.append((datapoint, all_names[i]))
+            pickle.dump(authors_embeddings, open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "wb"))
+           
 
 
 if __name__ == "__main__":
-    txt_processing = TextProcessings()
-    data = txt_processing.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
-                                              AuthorInfo.DESCRIERE.value,\
-                                              AuthorInfo.CITATE.value,
-                                              AuthorInfo.NUME.value)
-    parsed_data = txt_processing.get_raw_description_authors(data)
-    parsed_texts = [auth[AuthorInfo.DESCRIERE.value] for auth in parsed_data]
-    tf_idf_scores = txt_processing.tf_idf_score(parsed_texts[0:2])
+    # txt_processing = TextProcessings()
+    # data = txt_processing.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
+    #                                           AuthorInfo.DESCRIERE.value,\
+    #                                           AuthorInfo.CITATE.value,
+    #                                           AuthorInfo.NUME.value)
+    # parsed_data = txt_processing.get_raw_description_authors(data)
+    # parsed_texts = [auth[AuthorInfo.DESCRIERE.value] for auth in parsed_data]
+    # parsed_names = [auth[AuthorInfo.NUME.value] for auth in parsed_data]
+    # tf_idf_scores = txt_processing.get_tf_idf_score(parsed_texts)
+    # authors_pondered_tokens = txt_processing.get_authors_pondered_tokens(tf_idf_scores, parsed_texts)
+    # txt_processing.get_embeddings_authors(authors_pondered_tokens)
 
     with open('res.txt', 'w', encoding='utf-8') as f:
-        print(tf_idf_scores, file=f)
-        
-    with open('res.txt', 'w', encoding='utf-8') as f:
-        for i, text in enumerate(parsed_texts[:2]):
-            values = []
-            scored_tokens = []
-            for token in tokenize_text_spacy(text):
-                if token in tf_idf_scores:
-                    values.append(tf_idf_scores[token][i])
-                    scored_tokens.append(token)
-            values = normalize(np.float32([values]), norm='l1')
+        datapoints = pickle.load(open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "rb"))
+        for (name, w) in datapoints:
+            print(name, w, file=f)
+    
+    # with open('res.txt', 'w', encoding='utf-8') as f:
+    #     for author, weights in authors_pondered_tokens.items():
+    #         print(author, file=f)
+    #         for (token, weight) in weights:
+    #             print(token, weight, file=f)
 
-            for i, token in enumerate(scored_tokens):
-                print(token, values[0][i], file=f)
+    # tf_idf_scores[token] = [score_doc_1, score_doc_2, score_doc_3]
+    # {name_author: [(token, weight), (token, weight)]}
+
+   
 
 
 

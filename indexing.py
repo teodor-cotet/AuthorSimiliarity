@@ -4,12 +4,8 @@ from parse_htmls import HtmlParser
 import json
 json.encoder.c_make_encoder = None
 import nltk
-from gensim.models.wrappers import FastText as FastTextWrapper
 import numpy as np
-import pickle
 
-model_embeddings = None
-fast_text = "fastText/wiki.ro"
 show_authors = 50
 
 from sklearn import metrics
