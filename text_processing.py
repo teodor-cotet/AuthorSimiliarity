@@ -5,6 +5,8 @@ import spacy
 import numpy as np
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import normalize
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 from typing import Dict, Tuple, List, Any
 from gensim.models.wrappers import FastText as FastTextWrapper
 import pickle
@@ -130,26 +132,57 @@ class TextProcessings:
         tf_idf_scores = self.get_tf_idf_score(parsed_texts)
         authors_pondered_tokens = self.get_authors_pondered_tokens(tf_idf_scores, parsed_texts, parsed_names)
         self.get_embeddings_authors(authors_pondered_tokens)
+    
+    def get_word_embeddings_authors_file(self):
+        return pickle.load(open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "rb"))
+
+    def compute_pca(self, comp=17):
+        authors = txt_processing.get_word_embeddings_authors_file()
+        authors_vecs = np.float32([auth[1] for auth in authors])
+        authors_names = [auth[0] for auth in authors]
+        # normalize 
+        st_x = StandardScaler().fit_transform(authors_vecs)
+        # pca on 10 comp
+        pca = PCA(n_components=comp, copy=True, whiten=True)
+        # projected vectors
+        projected = pca.fit_transform(st_x)
+        print('pca variance per components')
+        print(pca.singular_values_)
+        print('partial sums for variance')
+        print(pca.explained_variance_ratio_)
+        return authors_names, projected
+    
+    def wirte_file_tensorboard(self, authors_names, projected):
+        
+        assert len(projected) == len(authors_names), 'assert error lengths'
+
+        with open("authors.model", "w", encoding='utf-8') as f:
+            f.write("{} {}\n".format(len(projected), 3))
+            for i, _ in enumerate(projected):
+                d = (projected[i], authors_names[i])
+                concat_name = "_".join(d[1].split(' '))
+                f.write("{} ".format(concat_name))
+                for i, v in enumerate(d[0][:3]):
+                    if i == len(d[0][:3]) - 1:
+                        f.write("{}".format(v))
+                    else:
+                        f.write("{} ".format(v))
+                f.write("\n")
 
 if __name__ == "__main__":
     txt_processing = TextProcessings()
-    txt_processing.compute_word_embeddings_authors()
-    # data = txt_processing.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
-    #                                           AuthorInfo.DESCRIERE.value,\
-    #                                           AuthorInfo.CITATE.value,
-    #                                           AuthorInfo.NUME.value)
-    # parsed_data = txt_processing.get_raw_description_authors(data)
-    # parsed_texts = [auth[AuthorInfo.DESCRIERE.value] for auth in parsed_data]
-    # parsed_names = [auth[AuthorInfo.NUME.value] for auth in parsed_data]
-    # tf_idf_scores = txt_processing.get_tf_idf_score(parsed_texts)
-    # authors_pondered_tokens = txt_processing.get_authors_pondered_tokens(tf_idf_scores, parsed_texts)
-    # txt_processing.get_embeddings_authors(authors_pondered_tokens)
+    authors_names, projected = txt_processing.compute_pca()
+    for _, p in enumerate(projected):
+        print(p)
+    #txt_processing.wirte_file_tensorboard(authors_names, projected)
 
-    # with open('res.txt', 'w', encoding='utf-8') as f:
-    #     datapoints = pickle.load(open(TextProcessings.AUTHORS_EMBEDDINGS_FILE, "rb"))
-    #     for (name, w) in datapoints:
-    #         print(name, w, file=f)
+    #txt_processing.compute_word_embeddings_authors()
+    # for p in projected:
+    #     print(p)
     
+    #with open('res.txt', 'w', encoding='utf-8') as f:
+    #    for (name, v) in authors:
+    #        print(name, v[:10], file=f)
     
 
    
