@@ -7,6 +7,10 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.preprocessing import normalize
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.neighbors import KNeighborsClassifier
+from scipy.cluster.hierarchy import fclusterdata
+
 from typing import Dict, Tuple, List, Any
 from gensim.models.wrappers import FastText as FastTextWrapper
 import pickle
@@ -44,11 +48,11 @@ class TextProcessings:
         tokens = list(filter(lambda token: token.dep_ != 'punct', tokens))
         return [token.lemma_ for token in tokens]
 
-    def get_data_from_index(self, index, *argv) -> Dict[str, Any]:
+    def get_data_from_index(self, index, *argv) -> List[Dict[str, Any]]:
         all_docs = self.es.get_all_docs(size=10000, index_to_search=Elastic.ELASTIC_INDEX_AUTHORS, verbose=False)
         data = []
         for doc in all_docs["hits"]["hits"]:
-            author = {arg: doc['_source'][arg] for arg in argv}
+            author = {arg: doc['_source'][arg] if arg in doc['_source'] else None for arg in argv}
             data.append(author)
         return data
 
@@ -146,16 +150,14 @@ class TextProcessings:
         pca = PCA(n_components=comp, copy=True, whiten=True)
         # projected vectors
         projected = pca.fit_transform(st_x)
-        print('pca variance per components')
-        print(pca.singular_values_)
-        print('partial sums for variance')
-        print(pca.explained_variance_ratio_)
+        # print('pca variance per components')
+        # print(pca.singular_values_)
+        # print('partial sums for variance')
+        # print(pca.explained_variance_ratio_)
         return authors_names, projected
     
     def wirte_file_tensorboard(self, authors_names, projected):
-        
         assert len(projected) == len(authors_names), 'assert error lengths'
-
         with open("authors.model", "w", encoding='utf-8') as f:
             f.write("{} {}\n".format(len(projected), 3))
             for i, _ in enumerate(projected):
@@ -168,22 +170,113 @@ class TextProcessings:
                     else:
                         f.write("{} ".format(v))
                 f.write("\n")
+    
+    def compute_jaccard_distance(self, l1, l2):
+        uni = len(set(l1).union(set(l2)))
+        inter = len(set(l1).intersection(set(l2)))
+        return inter / uni if uni > 0 else 0
+
+    def get_references_dist_matrix(self):
+        authors_ref = self.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
+                                                    AuthorInfo.NUME.value,\
+                                                    AuthorInfo.REF_AUTHORS.value)
+        dist_matrix = {}
+        with open("res.txt", "w", encoding='utf-8') as f:
+            for auth1 in authors_ref:
+                name_auth1 = auth1[AuthorInfo.NUME.value]
+                ref_list1 = auth1[AuthorInfo.REF_AUTHORS.value]
+                if ref_list1 is None:
+                    ref_list1 = []
+                dist_matrix[name_auth1] = {}
+                for auth2 in authors_ref:
+                    name_auth2 = auth2[AuthorInfo.NUME.value]
+                    ref_list2 = auth2[AuthorInfo.REF_AUTHORS.value]
+                    if ref_list2 is None:
+                        ref_list2 = []
+                    dist_matrix[name_auth1][name_auth2] = self.compute_jaccard_distance(ref_list1, ref_list2)
+            for auth1, v in dist_matrix.items():
+                print(auth1, file=f)
+                for auth2, v2 in v.items():
+                    print(auth2, v2, file=f)
+        return dist_matrix
+        
+    def min_max_years_scaling(self, years):
+        min_max_scaler = MinMaxScaler()
+        years = np.float32(years)
+        years = years.reshape((len(years), 1))
+        years_scaled = min_max_scaler.fit_transform(years)
+        years_scaled = [y[0] for y in years_scaled]
+        return years_scaled
+
+    def fill_missing_pub_year(self, authors: Dict[str, Dict[str, any]]) -> Dict[str, Dict[str, any]]:
+        train_names, train_projs, train_pub_years = [], [], []
+        test_names, test_projs = [], []
+        for auth, d in authors.items():
+            if d['year'] is None:
+                test_projs.append(d['proj'])
+                test_names.append(auth)
+            else:
+                train_projs.append(d['proj'])
+                train_pub_years.append(d['year'])
+                train_names.append(auth)
+            
+        knn = KNeighborsClassifier(n_neighbors=5, weights='distance')
+        knn.fit(train_projs, train_pub_years)
+
+        for i, proj in enumerate(test_projs):
+            authors[test_names[i]]['year']  = knn.predict([proj])[0]
+
+    def get_features_knn(self):
+        authors_names, projected = self.compute_pca()
+        authors = {}
+        authors_proj = {}
+        for author, proj in zip(authors_names, projected):
+            authors_proj[author] = proj
+        authors_year = self.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
+                                                    AuthorInfo.MEDIE_ANI_PUBLICARE.value,\
+                                                    AuthorInfo.NUME.value)
+        for author_year_dic in authors_year:
+            author_name = author_year_dic[AuthorInfo.NUME.value]
+            author_year = author_year_dic[AuthorInfo.MEDIE_ANI_PUBLICARE.value]
+            authors[author_name] = {}
+            authors[author_name]['year'] = author_year
+
+            if author_name in authors_proj:
+                authors[author_name]['proj'] = authors_proj[author_name]
+
+        self.fill_missing_pub_year(authors)
+        years, names, projs = [], [], []
+
+        with open("res.txt", "w", encoding='utf-8') as f:
+            for auth, d in authors.items():
+                year = d['year']
+                proj = d['proj']
+                years.append(float(year))
+                projs.append(proj)
+                names.append(auth)
+        years = self.min_max_years_scaling(years)
+        datapoints = [ y + p for y, p in zip(years, projs)] 
+        fclust = fclusterdata(datapoints, 1.0, metric=mydist)
+        print(fclust)
+        # names, projs, years
+
+        # with open("res.txt", "w", encoding='utf-8') as f:
+        #     for y in years_scaled:
+        #         print(y, file=f)
+def mydist(p1, p2):
+    #diff2 = p1[1] - p2[1]
+    return abs(p1[0] - p2[0])
 
 if __name__ == "__main__":
     txt_processing = TextProcessings()
-    authors_names, projected = txt_processing.compute_pca()
-    for _, p in enumerate(projected):
-        print(p)
-    #txt_processing.wirte_file_tensorboard(authors_names, projected)
+    #txt_processing.get_features_knn()
+    txt_processing.get_references_dist_matrix()
+# a custom function that just computes Euclidean distance
 
-    #txt_processing.compute_word_embeddings_authors()
-    # for p in projected:
-    #     print(p)
-    
-    #with open('res.txt', 'w', encoding='utf-8') as f:
-    #    for (name, v) in authors:
-    #        print(name, v[:10], file=f)
-    
+
+ 
+
+
 
    
 
