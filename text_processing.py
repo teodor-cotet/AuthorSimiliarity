@@ -14,7 +14,9 @@ from sklearn.cluster import AffinityPropagation
 from indexing import ElasticS
 from utils import AuthorInfo, Elastic, PublicationInfo, Selectors
 
-
+# readme
+# txt_processing.compute_word_embeddings_authors() - to store in AUTHORS_EMBEDDINGS_FILE the word embeddings
+# txt_processing.compute_pca() - to compute pca using word embeddings stored previously
 class TextProcessings:
 
     FAST_TEXT_PATH = "fastText/cc.ro.300"
@@ -46,6 +48,7 @@ class TextProcessings:
 
         tokens = [token for token in self.rom_spacy(text)]
         tokens = list(filter(lambda token: token.dep_ != 'punct', tokens))
+        tokens = list(filter(lambda token: token.is_stop == False , tokens))
         return [token.lemma_ for token in tokens]
 
     def get_data_from_index(self, index, *argv) -> List[Dict[str, Any]]:
@@ -70,8 +73,8 @@ class TextProcessings:
 
     def get_tf_idf_score(self, corpus: List[str]) -> Dict[str, List[float]]:
         print('get tf_idf')
-        feature_extraction = TfidfVectorizer(sublinear_tf=True,# tf =1 + log(tf)\
-                                             min_df=1,\
+        feature_extraction = TfidfVectorizer(sublinear_tf=True,# tf = 1 + log(tf)\
+                                             min_df=2,\
                                              analyzer='word',\
                                              tokenizer=self.tokenize_text_spacy,\
                                              norm='l2')
@@ -117,8 +120,8 @@ class TextProcessings:
                         
                 # normalize weights s.t. is a prob distribution
                 weights = normalize(np.float32([weights]), norm='l1')[0]
-                print(weights, file=f)
-                print(weights[0])
+                # print(weights, file=f)
+                # print(weights[0])
                 for i, token in enumerate(tokens):
                     weighted_avg_author += weights[i] * self.model_embeddings.wv[token]
                     print(token, weights[i] , file=f)
@@ -361,7 +364,7 @@ class TextProcessings:
 
     def find_nn(self, nn=50):
         self.get_features_knn()
-        with open("50_nn.txt", "w", encoding='utf-8') as f:
+        with open("50_nn_without_stop_words.txt", "w", encoding='utf-8') as f:
             self.get_features_knn()
             samples = [[i] for i in self.indices]
             neigh = NearestNeighbors(nn, metric=self.compute_distance)
@@ -374,7 +377,7 @@ class TextProcessings:
                     print(self.names[ind], dist, file=f)
 
     def clustering(self):
-        with open("res.txt", "w", encoding='utf-8') as f:
+        with open("clusters_without_stopwords.txt", "w", encoding='utf-8') as f:
             self.get_features_knn()
             n = len(self.indices)
             dist_matrix = np.zeros((n, n))
@@ -392,6 +395,7 @@ class TextProcessings:
 
 if __name__ == "__main__":
     txt_processing = TextProcessings()
+    #txt_processing.compute_word_embeddings_authors()
     txt_processing.clustering()
     #txt_processing.get_functions_dist_matrix()
     #txt_processing.find_nn()
