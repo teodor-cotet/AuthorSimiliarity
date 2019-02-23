@@ -1,19 +1,19 @@
-import sys
-from indexing import ElasticS
-from utils import Selectors, AuthorInfo, PublicationInfo, Elastic
-import spacy
-import numpy as np
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
-from sklearn.preprocessing import normalize
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.neighbors import KNeighborsClassifier
-from scipy.cluster.hierarchy import fclusterdata
-
-from typing import Dict, Tuple, List, Any
-from gensim.models.wrappers import FastText as FastTextWrapper
 import pickle
+import sys
+from typing import Any, Dict, List, Tuple
+
+import numpy as np
+import spacy
+from gensim.models.wrappers import FastText as FastTextWrapper
+from sklearn.decomposition import PCA
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_distances
+from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, normalize
+from sklearn.cluster import AffinityPropagation
+from indexing import ElasticS
+from utils import AuthorInfo, Elastic, PublicationInfo, Selectors
+
 
 class TextProcessings:
 
@@ -194,12 +194,86 @@ class TextProcessings:
                     if ref_list2 is None:
                         ref_list2 = []
                     dist_matrix[name_auth1][name_auth2] = self.compute_jaccard_distance(ref_list1, ref_list2)
-            for auth1, v in dist_matrix.items():
-                print(auth1, file=f)
-                for auth2, v2 in v.items():
-                    print(auth2, v2, file=f)
         return dist_matrix
-        
+
+    def substitute_professions_list(self, prof_list):
+        subst_list = []
+        for profession in prof_list:
+            if profession == "etnolog":
+                subst_list.append(0)
+            if 'critic' == profession:
+                subst_list.append(1)
+            if profession == 'autor dramatic' or profession == 'autoare' or profession == 'prozator' or profession == 'prozatoare' or 'eseist' == profession:
+                subst_list.append(2)
+            if 'folclorist' == profession or profession == 'culegător de folclor':
+                subst_list.append(3)
+            if profession == 'traducător' or profession == 'traducătoare':
+                subst_list.append(4)
+            if 'poet' == profession or profession == 'versificator' or profession == 'versificatoare' or profession == 'autor de versuri':
+                subst_list.append(5)
+            if 'dramaturg' == profession:
+                subst_list.append(6)
+            if 'slavist' == profession:
+                subst_list.append(7)
+            if 'jurnalist' == profession or 'gazetar' == profession or 'cronicar' == profession or 'publicist' == profession or 'ziarist' == profession:
+                subst_list.append(8)
+            if profession == "românist german":
+                subst_list.append(9)
+            if 'comparatist' == profession:
+                subst_list.append(10)
+            if profession == "editor":
+                subst_list.append(11)
+            if 'memorialist' == profession or 'diarist' == profession:
+                subst_list.append(12)
+            if 'clasicist' == profession:
+                subst_list.append(13)
+            if 'stilistician' == profession:
+                subst_list.append(14)
+            if 'filolog' == profession:
+                subst_list.append(15)
+            if 'cărturar' == profession:
+                subst_list.append(16)
+            if 'anglist' == profession:
+                subst_list.append(17)
+            if 'imnograf' == profession:
+                subst_list.append(18)
+            if 'istoric' == profession:
+                subst_list.append(19)
+            if 'estetician' == profession:
+                subst_list.append(20)
+            if 'teatrolog' == profession or 'critic de teatru' == profession:
+                subst_list.append(21)
+            if 'teoretician' == profession:
+                subst_list.append(22)
+            if 'povestitor' == profession:
+                subst_list.append(23)
+            if 'eminescolog' == profession:
+                subst_list.append(24)
+        return subst_list
+
+    def get_functions_dist_matrix(self):
+        authors_prof = self.get_data_from_index(Elastic.ELASTIC_INDEX_AUTHORS.value,\
+                                                    AuthorInfo.NUME.value,\
+                                                    AuthorInfo.PROFESII.value)
+                                                    
+        dist_matrix = {}
+        with open("res.txt", "w", encoding='utf-8') as f:
+            for auth1 in authors_prof:
+                name_auth1 = auth1[AuthorInfo.NUME.value]
+                prof_list1 = auth1[AuthorInfo.PROFESII.value]
+                if prof_list1 is None:
+                    prof_list1 = []
+                prof_list1 = self.substitute_professions_list(prof_list1)
+                dist_matrix[name_auth1] = {}
+                for auth2 in authors_prof:
+                    name_auth2 = auth2[AuthorInfo.NUME.value]
+                    prof_list2 = auth2[AuthorInfo.PROFESII.value]
+                    if prof_list2 is None:
+                        prof_list2 = []
+                    prof_list2 = self.substitute_professions_list(prof_list2)
+                    dist_matrix[name_auth1][name_auth2] = self.compute_jaccard_distance(prof_list1, prof_list2)
+        return dist_matrix
+
     def min_max_years_scaling(self, years):
         min_max_scaler = MinMaxScaler()
         years = np.float32(years)
@@ -245,43 +319,84 @@ class TextProcessings:
                 authors[author_name]['proj'] = authors_proj[author_name]
 
         self.fill_missing_pub_year(authors)
-        years, names, projs = [], [], []
-
+        self.years, self.names, self.projs = [], [], []
         with open("res.txt", "w", encoding='utf-8') as f:
             for auth, d in authors.items():
                 year = d['year']
                 proj = d['proj']
-                years.append(float(year))
-                projs.append(proj)
-                names.append(auth)
-        years = self.min_max_years_scaling(years)
-        datapoints = [ y + p for y, p in zip(years, projs)] 
-        fclust = fclusterdata(datapoints, 1.0, metric=mydist)
-        print(fclust)
-        # names, projs, years
+                self.years.append(float(year))
+                self.projs.append(proj)
+                self.names.append(auth)
+        self.indices = [i for i in range(len(self.years))]
+        self.years = self.min_max_years_scaling(self.years)
 
+        #datapoints = [y + p for y, p in zip(years, projs)] 
+        #fclust = fclusterdata(datapoints, 1.0, metric=mydist)
+        self.dist_functions = self.get_functions_dist_matrix()
+        self.dist_refs = self.get_references_dist_matrix()
+
+        # names, projs, years
+        # with open("res.txt", "w", encoding='utf-8') as f:
+        #     for p1 in self.projs:
+        #         for p2 in self.projs:
+        #             print(cosine_distances(np.asarray([p1, p2])), file=f)
         # with open("res.txt", "w", encoding='utf-8') as f:
         #     for y in years_scaled:
         #         print(y, file=f)
-def mydist(p1, p2):
-    #diff2 = p1[1] - p2[1]
-    return abs(p1[0] - p2[0])
+    # def mydist(p1, p2):
+    #     #diff2 = p1[1] - p2[1]
+    #     return abs(p1[0] - p2[0])
+
+    def compute_distance(self, p1, p2):
+        p1 = int(p1)
+        p2 = int(p2)
+        name1 = self.names[p1]
+        name2 = self.names[p2]
+        dist_funct = self.dist_functions[name1][name2] # [0, 1]
+        dist_refs = self.dist_refs[name1][name2] # [0, 1]
+        dist_year = abs(self.years[p1] - self.years[p2])
+        proj1, proj2 = self.projs[p1], self.projs[p2]
+        cos_dist = cosine_distances(np.asarray([proj1]), np.asarray([proj2]))[0][0]
+        return (1 - dist_funct) + (1 - dist_refs) + dist_year + len(proj1) * cos_dist / 2
+
+    def find_nn(self, nn=50):
+        self.get_features_knn()
+        with open("50_nn.txt", "w", encoding='utf-8') as f:
+            self.get_features_knn()
+            samples = [[i] for i in self.indices]
+            neigh = NearestNeighbors(nn, metric=self.compute_distance)
+            neigh.fit(samples)
+            for i in samples:
+                print(self.names[i[0]], 'x', file=f)    
+                res = neigh.kneighbors([[i[0]]], nn)
+                res_dist = normalize(np.float32([res[0][0]]))
+                for dist, ind in zip(res_dist[0], res[1][0]):
+                    print(self.names[ind], dist, file=f)
+
+    def clustering(self):
+        with open("res.txt", "w", encoding='utf-8') as f:
+            self.get_features_knn()
+            n = len(self.indices)
+            dist_matrix = np.zeros((n, n))
+            for i in range(n):
+                for j in range(n):
+                    dist_matrix[i][j] = self.compute_distance(i, j)
+            aff_prop  = AffinityPropagation(affinity='precomputed')
+            aff_prop.fit(dist_matrix)
+            nr_clusters = max(aff_prop.labels_) + 1
+            for i in range(nr_clusters):
+                print('cluster ', i, file=f)
+                for index, j in enumerate(aff_prop.labels_):
+                    if j == i:
+                        print(self.names[index], file=f)
 
 if __name__ == "__main__":
     txt_processing = TextProcessings()
-    #txt_processing.get_features_knn()
-    txt_processing.get_references_dist_matrix()
-# a custom function that just computes Euclidean distance
-
-
- 
-
-
-
-   
-
-
-
-
-
+    txt_processing.clustering()
+    #txt_processing.get_functions_dist_matrix()
+    #txt_processing.find_nn()
     
+    #txt_processing.get_features_knn()
+    # txt_processing.get_functions_dist_matrix()
+    
+# a custom function that just computes Euclidean distance
