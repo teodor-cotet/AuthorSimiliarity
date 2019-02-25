@@ -73,7 +73,7 @@ class TextProcessings:
 
     def get_tf_idf_score(self, corpus: List[str]) -> Dict[str, List[float]]:
         print('get tf_idf')
-        feature_extraction = TfidfVectorizer(sublinear_tf=True,# tf = 1 + log(tf)\
+        feature_extraction = TfidfVectorizer(sublinear_tf=True,# tf = s1 + log(tf)\
                                              min_df=2,\
                                              analyzer='word',\
                                              tokenizer=self.tokenize_text_spacy,\
@@ -106,7 +106,7 @@ class TextProcessings:
         self.model_embeddings = FastTextWrapper.load_fasttext_format(TextProcessings.FAST_TEXT_PATH)
         authors_embeddings = []
         print('computing embeddings')
-        with open('res.txt', 'w', encoding='utf-8') as f:
+        with open('300_authors_embeddings.txt', 'w', encoding='utf-8') as f:
             for name, tokens_weights in authors_pondered_tokens.items():
                 weighted_avg_author = np.float32([0] * TextProcessings.WORD_DIM)
                 print(name, file=f)
@@ -153,22 +153,23 @@ class TextProcessings:
         pca = PCA(n_components=comp, copy=True, whiten=True)
         # projected vectors
         projected = pca.fit_transform(st_x)
-        # print('pca variance per components')
-        # print(pca.singular_values_)
-        # print('partial sums for variance')
-        # print(pca.explained_variance_ratio_)
+        print('variance per comp')
+        for rat in pca.explained_variance_ratio_:
+            print(rat)
+        #print(pca.explained_variance_ratio_)
         return authors_names, projected
     
     def wirte_file_tensorboard(self, authors_names, projected):
         assert len(projected) == len(authors_names), 'assert error lengths'
-        with open("authors.model", "w", encoding='utf-8') as f:
-            f.write("{} {}\n".format(len(projected), 3))
+        dim = 300
+        with open("300_authors.model", "w", encoding='utf-8') as f:
+            f.write("{} {}\n".format(len(projected), dim))
             for i, _ in enumerate(projected):
                 d = (projected[i], authors_names[i])
                 concat_name = "_".join(d[1].split(' '))
                 f.write("{} ".format(concat_name))
-                for i, v in enumerate(d[0][:3]):
-                    if i == len(d[0][:3]) - 1:
+                for i, v in enumerate(d[0][:dim]):
+                    if i == len(d[0][:dim]) - 1:
                         f.write("{}".format(v))
                     else:
                         f.write("{} ".format(v))
@@ -362,19 +363,26 @@ class TextProcessings:
         cos_dist = cosine_distances(np.asarray([proj1]), np.asarray([proj2]))[0][0]
         return (1 - dist_funct) + (1 - dist_refs) + dist_year + len(proj1) * cos_dist / 2
 
-    def find_nn(self, nn=50):
+    def find_nn(self):
         self.get_features_knn()
-        with open("50_nn_without_stop_words.txt", "w", encoding='utf-8') as f:
+        with open("all_nn_without_stop_words.txt", "w", encoding='utf-8') as f:
             self.get_features_knn()
             samples = [[i] for i in self.indices]
-            neigh = NearestNeighbors(nn, metric=self.compute_distance)
-            neigh.fit(samples)
-            for i in samples:
-                print(self.names[i[0]], 'x', file=f)    
-                res = neigh.kneighbors([[i[0]]], nn)
-                res_dist = normalize(np.float32([res[0][0]]))
-                for dist, ind in zip(res_dist[0], res[1][0]):
-                    print(self.names[ind], dist, file=f)
+            for i in self.indices:
+                dists = []
+                for j in self.indices:
+                    dists.append((self.names[j], self.compute_distance(i, j)))
+                dists = sorted(dists, key = lambda x: x[1])
+                for (nj, d) in dists:
+                    print(self.names[i], nj, d/20, file=f)
+            #neigh = NearestNeighbors(nn, metric=self.compute_distance)
+            # neigh.fit(samples)
+            # for i in samples:
+            #     print(self.names[i[0]], 'x', file=f)    
+            #     res = neigh.kneighbors([[i[0]]], nn)
+            #     res_dist = normalize(np.float32([res[0][0]]))
+            #     for dist, ind in zip(res_dist[0], res[1][0]):
+            #         print(self.names[i[0]], self.names[ind], dist, file=f)
 
     def clustering(self):
         with open("clusters_without_stopwords.txt", "w", encoding='utf-8') as f:
@@ -395,11 +403,15 @@ class TextProcessings:
 
 if __name__ == "__main__":
     txt_processing = TextProcessings()
-    #txt_processing.compute_word_embeddings_authors()
-    txt_processing.clustering()
+    # authors = txt_processing.get_word_embeddings_authors_file()
+    # authors_vecs = np.float32([auth[1] for auth in authors])
+    # authors_names = [auth[0] for auth in authors]
+    # txt_processing.wirte_file_tensorboard(authors_names, authors_vecs)
+    #txt_processing.clustering()
     #txt_processing.get_functions_dist_matrix()
-    #txt_processing.find_nn()
     
+    #txt_processing.find_nn()
+    txt_processing.find_nn()
     #txt_processing.get_features_knn()
     # txt_processing.get_functions_dist_matrix()
     
