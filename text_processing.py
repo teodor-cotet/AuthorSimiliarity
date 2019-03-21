@@ -339,18 +339,6 @@ class TextProcessings:
         self.dist_functions = self.get_functions_dist_matrix()
         self.dist_refs = self.get_references_dist_matrix()
 
-        # names, projs, years
-        # with open("res.txt", "w", encoding='utf-8') as f:
-        #     for p1 in self.projs:
-        #         for p2 in self.projs:
-        #             print(cosine_distances(np.asarray([p1, p2])), file=f)
-        # with open("res.txt", "w", encoding='utf-8') as f:
-        #     for y in years_scaled:
-        #         print(y, file=f)
-    # def mydist(p1, p2):
-    #     #diff2 = p1[1] - p2[1]
-    #     return abs(p1[0] - p2[0])
-
     def compute_distance(self, p1, p2):
         p1 = int(p1)
         p2 = int(p2)
@@ -375,14 +363,6 @@ class TextProcessings:
                 dists = sorted(dists, key = lambda x: x[1])
                 for (nj, d) in dists:
                     print(self.names[i], nj, d/20, file=f)
-            #neigh = NearestNeighbors(nn, metric=self.compute_distance)
-            # neigh.fit(samples)
-            # for i in samples:
-            #     print(self.names[i[0]], 'x', file=f)    
-            #     res = neigh.kneighbors([[i[0]]], nn)
-            #     res_dist = normalize(np.float32([res[0][0]]))
-            #     for dist, ind in zip(res_dist[0], res[1][0]):
-            #         print(self.names[i[0]], self.names[ind], dist, file=f)
 
     def clustering(self):
         with open("clusters_without_stopwords.txt", "w", encoding='utf-8') as f:
@@ -403,16 +383,9 @@ class TextProcessings:
 
 if __name__ == "__main__":
     txt_processing = TextProcessings()
+    # txt_processing.compute_word_embeddings_authors() - to store in AUTHORS_EMBEDDINGS_FILE the word embeddings
+    # txt_processing.compute_pca() - to compute pca using word embeddings stored previously
     # authors = txt_processing.get_word_embeddings_authors_file()
-    # authors_vecs = np.float32([auth[1] for auth in authors])
-    # authors_names = [auth[0] for auth in authors]
-    # txt_processing.wirte_file_tensorboard(authors_names, authors_vecs)
-    #txt_processing.clustering()
-    #txt_processing.get_functions_dist_matrix()
-    
-    #txt_processing.find_nn()
     txt_processing.find_nn()
-    #txt_processing.get_features_knn()
-    # txt_processing.get_functions_dist_matrix()
     
 # a custom function that just computes Euclidean distance

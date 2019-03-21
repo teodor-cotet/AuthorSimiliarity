@@ -1,0 +1,71 @@
+htmls files contain 2 types of sections:
+    -small (authors+publications)
+    -big (authors+publications)
+
+we have 2 categories which are indexed in es:
+    -authors:
+        * name: name of the puauthor
+        * short description: lifespan, titles # TODO get info from this
+        * quotes: 
+        * important author: y/n
+        * writings: 
+        * references:
+        * description: rest of the text
+    -publications
+        * name: name of the publications
+        * description: rest of the text
+
+stats for each section:
+    big (355 in total only authors):
+        failed (to extract name): 3 / 355
+        authors: 352 / 355
+    small ((1464 in total) - publications + authors):
+        failed-pub-and-authors (to extract name): 128 / 1464
+        good-publications-total: 455 / 1464
+        good-authors-total: 881 / 1464
+    
+    in the end we get:
+        good-authors: good-small-authors + good-big-authors = 881 + 352 = 1233
+        good-publications: 455
+
+other observations:
+    -authors and publication may be mixed sometimes, they are distinguished by a short list of keywords
+        that are common in publications
+    authors:
+        -short description contains generally name (not so often) function and lifespan, should be alright in 90% of cases
+            for the parsed authors
+        -important_author is a tag that marks if the original publications had a big space between the name of the author 
+            and the text (generally this implies that the author is important - has more text)
+
+        following authors dont have a preofession:
+            CAMARIANO-CIORAN Ariadna
+            CANTACUZINO Mihai
+            BACIU Camil
+            CANTILLI Aristide
+            DĂRMĂNESCU Iordache Darie
+            CÂNTEC c .
+            ALMANAH a .
+            AMIRAS Alexandru
+            ANGHEL Petre
+            ANGHELESCU Nadia
+            ANONIMUL BRÂNCOVENESC
+            ANTONESCU Nae
+            DOINă d .
+            DOMOKOS Sámuel
+            COMAN Mihai
+            CONDREA DERER Doina
+            (16.XII.1878, Călărași – 10.IX.1971, București), bizantinolog.
+
+
+            BERTOLDO Solomon şi Aşmedai
+            DUMA Radu
+            CORESI Şerban
+            CORNEA George
+            COSTIN Jacques G
+            COSTIN Lucian
+            CRISTESCU Florian
+            BOCET B .
+            BRATU Traian
+            BRÂNCUŞ Elisabeta
+            BRÎNZEU Pia
+            BUNĂ VESTIRE
