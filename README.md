@@ -1,5 +1,6 @@
 # Similarity between Romanian authors
 
+Article cand be found [here](SemanticAuthorRecommendations.pdf)
 
 ### Results for the most important authors:
 
@@ -44,4 +45,4 @@
 | Mihai Cantacuzino   | 0.197    |
 
 ### Most similar authors with *Miron Costin* - tensorboard visualization - using only descriptions
-[Miron Costin](img/miron_costin.png)
+![Miron Costin](img/miron_costin.png)
